@@ -26,7 +26,7 @@ var APP_ID = undefined;
 var URL = "http://events.stanford.edu/eventlist.ics";
 
 // Skills name
-var skillName = "Google Calendar Assistant";
+var skillName = "Educational Feed";
 
 // Message when the skill is first called
 var welcomeMessage = "You can ask for the events today. Search for events by date. or say help. What would you like? ";
@@ -210,6 +210,22 @@ var startSearchHandlers = Alexa.CreateStateHandler(states.SEARCHMODE, {
             // Authorize a client with the loaded credentials, then call the
             // Google Calendar API.
             authorize(JSON.parse(content), slotValue, listEvents);
+        });
+    },
+    
+    'singleIntent' : function() {
+        var eventList = [];
+        var slotValue = this.event.request.intent.slots.task.value;
+        var parent = this;
+        
+        fs.readFile('client_secret.json', function processClientSecrets(err, content) {
+            if (err) {
+                alexa.emit(':tell', 'Error loading client secret file ' + err, 'Error loading client secret file ' + err);
+                return;
+            }
+            // Authorize a client with the loaded credentials, then call the
+            // Google Calendar API.
+            authorize(JSON.parse(content), slotValue, listEvents2);
         });
     },
 
@@ -510,7 +526,37 @@ function listEvents(auth, slotValue) {
                 }
             }
             
-            alexa.emit(':tell', slotValue + " is " + res, slotValue + " is " + res);
+            alexa.emit(':tell', res, res);
+        }
+    });
+}
+
+function listEvents2(auth, slotValue) {
+    var calendar = google.calendar('v3');
+    calendar.events.list({
+        auth: auth,
+        calendarId: 'primary',
+        timeMin: (new Date()).toISOString(),
+        maxResults: 15,
+        singleEvents: true,
+        orderBy: 'startTime'
+    }, function(err, response) {
+        if (err) {
+            console.log('The API returned an error: ' + err);
+            return;
+        }
+        var events = response.items;
+        if (events.length == 0) {
+            alexa.emit(':tell', 'No upcoming events found', 'No upcoming events found');
+        } else {
+            for (var i = 0, str = ""; i < events.length; i++) {
+                
+                str = events[i].summary.split(" ");
+                
+                if (slotValue.toLowerCase() === str[str.length - 1].toLowerCase()) {
+                    alexa.emit(':tell', events[i].summary, events[i].summary);
+                }
+            }
         }
     });
 }
