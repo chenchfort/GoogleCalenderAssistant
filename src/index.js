@@ -197,9 +197,9 @@ var startSearchHandlers = Alexa.CreateStateHandler(states.SEARCHMODE, {
         });
     },
     
-    'examIntent' : function() {
+    'calendarIntent' : function() {
         var eventList = [];
-        // var slotValue = this.event.request.intent.slots.date.value;
+        var slotValue = this.event.request.intent.slots.task.value;
         var parent = this;
     
         fs.readFile('client_secret.json', function processClientSecrets(err, content) {
@@ -209,7 +209,7 @@ var startSearchHandlers = Alexa.CreateStateHandler(states.SEARCHMODE, {
             }
             // Authorize a client with the loaded credentials, then call the
             // Google Calendar API.
-            authorize(JSON.parse(content), listEvents);
+            authorize(JSON.parse(content), slotValue, listEvents);
         });
     },
 
@@ -409,7 +409,7 @@ function getEventsBeweenDates(startDate, endDate, eventList) {
     return data;
 }
 
-function authorize(credentials, callback) {
+function authorize(credentials, slotValue, callback) {
     var clientSecret = credentials.installed.client_secret;
     var clientId = credentials.installed.client_id;
     var redirectUrl = credentials.installed.redirect_uris[0];
@@ -417,15 +417,14 @@ function authorize(credentials, callback) {
     var auth = new googleAuth();
     
     var oauth2Client = new auth.OAuth2(clientId, clientSecret, redirectUrl);
-    // alexa.emit(':tell', 'Upcoming 10 events', 'Upcoming 10 events');
 
     // Check if we have previously stored a token.
     fs.readFile(TOKEN_PATH, function(err, token) {
         if (err) {
-            getNewToken(oauth2Client, callback);
+            getNewToken(oauth2Client, slotValue, callback);
         } else {
             oauth2Client.credentials = JSON.parse(token);
-            callback(oauth2Client);
+            callback(oauth2Client, slotValue);
         }
     });
 }
@@ -438,7 +437,7 @@ function authorize(credentials, callback) {
  * @param {getEventsCallback} callback The callback to call with the authorized
  *     client.
  */
-function getNewToken(oauth2Client, callback) {
+function getNewToken(oauth2Client, slotValue, callback) {
     var authUrl = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: SCOPES
@@ -457,7 +456,7 @@ function getNewToken(oauth2Client, callback) {
             }
             oauth2Client.credentials = token;
             storeToken(token);
-            callback(oauth2Client);
+            callback(oauth2Client, slotValue);
         });
     });
 }
@@ -484,13 +483,13 @@ function storeToken(token) {
  *
  * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
  */
-function listEvents(auth) {
+function listEvents(auth, slotValue) {
     var calendar = google.calendar('v3');
     calendar.events.list({
         auth: auth,
         calendarId: 'primary',
         timeMin: (new Date()).toISOString(),
-        maxResults: 10,
+        maxResults: 15,
         singleEvents: true,
         orderBy: 'startTime'
     }, function(err, response) {
@@ -502,15 +501,16 @@ function listEvents(auth) {
         if (events.length == 0) {
             alexa.emit(':tell', 'No upcoming events found', 'No upcoming events found');
         } else {
-            for (var i = 0, str = ""; i < events.length; i++) {
-                // var event = events[i];
-                // var start = event.start.dateTime || event.start.date;
-                // console.log('%s - %s', start, event.summary);
+            for (var i = 0, str = "", res = ""; i < events.length; i++) {
+    
+                str = events[i].summary.split(" ");
                 
-                str += events[i].summary;
+                if (slotValue.toLowerCase() === str[str.length - 1].toLowerCase()) {
+                    res += events[i].summary + " ";
+                }
             }
             
-            alexa.emit(':tell', str, str);
+            alexa.emit(':tell', slotValue + " is " + res, slotValue + " is " + res);
         }
     });
 }
